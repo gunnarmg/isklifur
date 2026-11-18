@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Veður á leiðinni</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f8; --panel: #ffffff; --ink: #16212b; --muted: #5d6b78; --line: #dfe5ea;
+    --accent: #0b6bcb; --warn: #b45309; --warn-bg: #fff4e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f151b; --panel: #18212a; --ink: #e8eef3; --muted: #93a1ae; --line: #2a3642;
+            --accent: #5aa9f5; --warn: #fbbf24; --warn-bg: #3a2c10; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); }
+  header { padding: 12px 14px 4px; }
+  h1 { font-size: 19px; margin: 0; }
+  header p { margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 8px 10px 30px; display: grid; gap: 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+  .form label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); min-width: 0; }
+  .form .wide { grid-column: 1 / -1; }
+  select, input, button { font: inherit; color: var(--ink); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px; min-height: 40px; width: 100%; min-width: 0; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .55; cursor: default; }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; padding: 6px 4px; min-height: 36px; font-size: 13px; }
+  .seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #map { height: 46vh; min-height: 280px; border-radius: 12px; border: 1px solid var(--line); z-index: 0; }
+  #status { font-size: 13px; color: var(--muted); min-height: 18px; }
+  #status.err { color: #dc2626; }
+  .now { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: center; }
+  .now .sym { font-size: 40px; line-height: 1; grid-row: span 2; }
+  .now .when { font-weight: 600; font-size: 16px; }
+  .now .where { color: var(--muted); font-size: 13px; }
+  .vals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
+  .val { border: 1px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; }
+  .val b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  .val span { font-size: 12px; color: var(--muted); }
+  .arrow { display: inline-block; transition: transform .2s; }
+  .ctrl { display: grid; grid-template-columns: 52px 1fr 70px; gap: 8px; align-items: center; margin-top: 10px; }
+  .ctrl input[type=range] { padding: 0; border: 0; background: none; }
+  #warn { display: none; margin-top: 10px; background: var(--warn-bg); color: var(--warn);
+          border-radius: 8px; padding: 8px 10px; font-size: 13px; }
+  canvas { width: 100%; height: 230px; display: block; touch-action: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 14px; height: 8px; border-radius: 2px; margin-right: 4px; }
+  #summary { font-size: 13px; margin: 0; padding-left: 18px; }
+  #summary li { margin: 2px 0; }
+  .car { font-size: 26px; line-height: 26px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+  footer { font-size: 12px; color: var(--muted); padding: 0 4px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Veður á leiðinni</h1>
+  <p>Spáin á hverjum stað á þeim tíma sem þú ert þar.</p>
+</header>
+<div class="wrap">
+  <div class="panel">
+    <div class="form">
+      <label>Frá <select id="from"></select></label>
+      <label>Til <select id="to"></select></label>
+      <label>Brottför <input type="datetime-local" id="depart"></label>
+      <label>Aksturshraði
+        <select id="pace">
+          <option value="1">Venjulegur</option>
+          <option value="1.15">Hægari (+15%)</option>
+          <option value="1.3">Vetrarfærð (+30%)</option>
+        </select>
+      </label>
+      <label class="wide">Smellur á kort setur
+        <div class="seg" id="pick">
+          <button data-v="none" class="on">Ekkert</button>
+          <button data-v="from">Upphafsstað</button>
+          <button data-v="to">Endastað</button>
+        </div>
+      </label>
+      <button class="primary wide" id="go">Sækja leið og spá</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <div id="map"></div>
+
+  <div class="panel hidden" id="trip">
+    <div class="now">
+      <div class="sym" id="sym">–</div>
+      <div class="when" id="when">–</div>
+      <div class="where" id="where">–</div>
+    </div>
+    <div class="vals">
+      <div class="val"><b id="vT">–</b><span>Hiti</span></div>
+      <div class="val"><b id="vW">–</b><span id="vG">Vindur</span></div>
+      <div class="val"><b id="vP">–</b><span>Úrkoma mm/klst</span></div>
+    </div>
+    <div id="warn"></div>
+    <div class="ctrl">
+      <button id="play" aria-label="Spila">▶</button>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Staða á leið">
+      <select id="speed" aria-label="Hraði spilunar">
+        <option value="40">Hægt</option>
+        <option value="20" selected>Mið</option>
+        <option value="8">Hratt</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="panel hidden" id="chartPanel">
+    <div class="seg" id="elem">
+      <button data-v="wind" class="on">Vindur</button>
+      <button data-v="temp">Hiti</button>
+      <button data-v="precip">Úrkoma</button>
+    </div>
+    <div class="legend" id="legend"></div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="panel hidden" id="sumPanel"><ul id="summary"></ul></div>
+
+  <footer>
+    Leið: OSRM (OpenStreetMap). Spá: Open-Meteo. Kort © OpenStreetMap. Þetta er tölvuspá í punktum —
+    skoðaðu alltaf viðvaranir á vedur.is og færð á umferdin.is áður en lagt er af stað.
+  </footer>
+</div>
+
+<script>
+"use strict";
+// ---------- Staðir ----------
+const PLACES = [
+  ["Reykjavík",64.1466,-21.9426],["Keflavíkurflugvöllur",63.985,-22.605],["Grindavík",63.842,-22.434],
+  ["Hveragerði",64.000,-21.186],["Selfoss",63.933,-21.003],["Þingvellir",64.256,-21.130],
+  ["Geysir",64.310,-20.302],["Flúðir",64.135,-20.325],["Hella",63.835,-20.400],["Hvolsvöllur",63.750,-20.224],
+  ["Landeyjahöfn",63.530,-20.118],["Vík",63.419,-19.006],["Kirkjubæjarklaustur",63.790,-18.058],
+  ["Skaftafell",64.016,-16.966],["Höfn",64.254,-15.208],["Djúpivogur",64.657,-14.283],
+  ["Egilsstaðir",65.267,-14.395],["Seyðisfjörður",65.260,-14.010],["Neskaupstaður",65.148,-13.684],
+  ["Vopnafjörður",65.756,-14.829],["Þórshöfn",66.200,-15.333],["Húsavík",66.045,-17.338],
+  ["Mývatn (Reykjahlíð)",65.642,-16.912],["Akureyri",65.683,-18.090],["Dalvík",65.970,-18.530],
+  ["Siglufjörður",66.152,-18.908],["Varmahlíð",65.553,-19.447],["Sauðárkrókur",65.746,-19.640],
+  ["Blönduós",65.660,-20.280],["Hvammstangi",65.397,-20.943],["Staðarskáli",65.143,-21.088],
+  ["Hólmavík",65.706,-21.667],["Ísafjörður",66.075,-23.135],["Patreksfjörður",65.596,-23.995],
+  ["Búðardalur",65.110,-21.767],["Stykkishólmur",65.075,-22.730],["Ólafsvík",64.894,-23.709],
+  ["Borgarnes",64.538,-21.921],["Húsafell",64.699,-20.870],["Akranes",64.321,-22.075]
+].sort((a,b)=>a[0].localeCompare(b[0],"is"));
+
+const $ = id => document.getElementById(id);
+const pts = { from: null, to: null };           // {name, lat, lon}
+let pickMode = "none", elem = "wind";
+let trip = null, playing = false, frac = 0, lastTs = 0;
+
+// ---------- Hrein reikniföll ----------
+const lerp = (a,b,f) => a + (b-a)*f;
+const clamp = (x,a,b) => Math.max(a, Math.min(b, x));
+function haversine(a, b) {                      // [lat,lon] → metrar
+  const R = 6371000, r = Math.PI/180;
+  const dLat = (b[0]-a[0])*r, dLon = (b[1]-a[1])*r;
+  const s = Math.sin(dLat/2)**2 + Math.cos(a[0]*r)*Math.cos(b[0]*r)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(s));
+}
+function upperIdx(arr, x) {                     // minnsta i með arr[i] >= x (arr hækkandi)
+  let lo = 0, hi = arr.length-1;
+  while (lo < hi) { const m = (lo+hi)>>1; if (arr[m] < x) lo = m+1; else hi = m; }
+  return lo;
+}
+function alongArr(xs, x) {                      // → {i, f}: x liggur milli xs[i] og xs[i+1]
+  if (x <= xs[0]) return { i: 0, f: 0 };
+  const n = xs.length-1;
+  if (x >= xs[n]) return { i: n-1, f: 1 };
+  const j = upperIdx(xs, x), i = j-1, span = xs[j]-xs[i];
+  return { i, f: span > 0 ? (x-xs[i])/span : 0 };
+}
+function buildRoute(route, pace) {
+  const latlng = route.geometry.coordinates.map(c => [c[1], c[0]]);
+  const n = latlng.length, cumD = new Array(n).fill(0), cumT = new Array(n).fill(0);
+  for (let i = 1; i < n; i++) cumD[i] = cumD[i-1] + haversine(latlng[i-1], latlng[i]);
+  let durs = [];
+  for (const leg of route.legs || []) if (leg.annotation && leg.annotation.duration) durs = durs.concat(leg.annotation.duration);
+  if (durs.length === n-1) for (let i = 1; i < n; i++) cumT[i] = cumT[i-1] + durs[i-1];
+  else for (let i = 1; i < n; i++) cumT[i] = route.duration * cumD[i] / (cumD[n-1] || 1);
+  for (let i = 0; i < n; i++) cumT[i] *= pace;
+  return { latlng, cumD, cumT, dist: cumD[n-1], dur: cumT[n-1] };
+}
+function posAtDist(r, d) {
+  const { i, f } = alongArr(r.cumD, d);
+  return [lerp(r.latlng[i][0], r.latlng[i+1][0], f), lerp(r.latlng[i][1], r.latlng[i+1][1], f)];
+}
+function timeAtDist(r, d) { const { i, f } = alongArr(r.cumD, d); return lerp(r.cumT[i], r.cumT[i+1], f); }
+function distAtTime(r, t) { const { i, f } = alongArr(r.cumT, t); return lerp(r.cumD[i], r.cumD[i+1], f); }
+
+function wxAtSample(h, tSec) {                  // h = hourly frá Open-Meteo, tSec = unix sek
+  const n = h.time.length, x = clamp((tSec - h.time[0]) / 3600, 0, n-1);
+  const i = Math.min(Math.floor(x), n-2), f = x - i, near = f < .5 ? i : i+1;
+  return {
+    temp: lerp(h.temperature_2m[i], h.temperature_2m[i+1], f),
+    wind: lerp(h.wind_speed_10m[i], h.wind_speed_10m[i+1], f),
+    gust: lerp(h.wind_gusts_10m[i], h.wind_gusts_10m[i+1], f),
+    dir: h.wind_direction_10m[near],
+    precip: h.precipitation[i+1],                // summa klukkustundarinnar sem tíminn fellur í
+    code: h.weather_code[near]
+  };
+}
+function wxAt(t, d, tSec) {                     // veður á vegalengd d á tíma tSec
+  const { i, f } = alongArr(t.sampleD, d);
+  const a = wxAtSample(t.hourly[i], tSec), b = wxAtSample(t.hourly[i+1], tSec);
+  return { temp: lerp(a.temp,b.temp,f), wind: lerp(a.wind,b.wind,f), gust: lerp(a.gust,b.gust,f),
+           precip: lerp(a.precip,b.precip,f), dir: (f<.5?a:b).dir, code: (f<.5?a:b).code };
+}
+
+// ---------- Litir og tákn ----------
+const SCALES = {
+  wind:   { unit: "m/s", steps: [[5,"#3fa34d"],[10,"#a3c93a"],[15,"#f2c230"],[20,"#f08a24"],[25,"#d9342b"],[Infinity,"#8e24aa"]] },
+  temp:   { unit: "°C",  steps: [[-10,"#3b2fa0"],[-5,"#2f6fd6"],[0,"#58b4e8"],[5,"#9fd8a0"],[10,"#f2c230"],[Infinity,"#e8662a"]] },
+  precip: { unit: "mm/klst", steps: [[0.05,"#9aa5b1"],[0.5,"#8fd0f0"],[2,"#3a8fe0"],[5,"#2a4fc0"],[Infinity,"#8e24aa"]] }
+};
+function colorFor(kind, v) { for (const [lim, c] of SCALES[kind].steps) if (v < lim) return c; }
+function symbol(code) {
+  if (code === 0) return ["☀️","Heiðskírt"];
+  if (code <= 2) return ["🌤️","Léttskýjað"];
+  if (code === 3) return ["☁️","Skýjað"];
+  if (code <= 48) return ["🌫️","Þoka"];
+  if (code <= 57) return ["🌦️","Súld"];
+  if (code <= 67) return ["🌧️","Rigning"];
+  if (code <= 77) return ["🌨️","Snjókoma"];
+  if (code <= 82) return ["🌧️","Skúrir"];
+  if (code <= 86) return ["🌨️","Él"];
+  return ["⛈️","Þrumuveður"];
+}
+const DIRS = ["N","NA","A","SA","S","SV","V","NV"];
+const dirName = d => DIRS[Math.round(d/45) % 8];
+const p2 = x => String(x).padStart(2, "0");
+const WD = ["sun.","mán.","þri.","mið.","fim.","fös.","lau."];
+const MON = ["jan.","feb.","mars","apr.","maí","júní","júlí","ágú.","sep.","okt.","nóv.","des."];
+const fmtT = ms => { const d = new Date(ms); return p2(d.getHours()) + ":" + p2(d.getMinutes()); };
+const fmtDay = ms => { const d = new Date(ms); return WD[d.getDay()] + " " + d.getDate() + ". " + MON[d.getMonth()]; };
+function fmtDur(s) { const m = Math.round(s/60); return Math.floor(m/60) + " klst " + (m%60) + " mín"; }
+function nearestPlace(lat, lon) {
+  let best = null, bd = 1e12;
+  for (const p of PLACES) { const d = haversine([lat,lon],[p[1],p[2]]); if (d < bd) { bd = d; best = p; } }
+  return bd < 25000 ? (bd < 3000 ? best[0] : Math.round(bd/1000) + " km frá: " + best[0]) : "";
+}
+
+// ---------- Gagnasókn ----------
+async function getJSON(url, what) {
+  let res;
+  try { res = await fetch(url); }
+  catch (e) { throw new Error("Náði ekki sambandi við " + what + " (netið eða síðan lokar á beiðnina)."); }
+  if (!res.ok) throw new Error(what + " svaraði með villu " + res.status + ".");
+  return res.json();
+}
+async function loadTrip() {
+  if (!pts.from || !pts.to) throw new Error("Veldu upphafs- og endastað.");
+  const dep = new Date($("depart").value).getTime();
+  if (!isFinite(dep)) throw new Error("Veldu brottfarartíma.");
+  setStatus("Sæki leið…");
+  const o = await getJSON("https://router.project-osrm.org/route/v1/driving/" +
+    pts.from.lon + "," + pts.from.lat + ";" + pts.to.lon + "," + pts.to.lat +
+    "?overview=full&geometries=geojson&annotations=duration", "leiðaþjónustuna");
+  if (!o.routes || !o.routes.length) throw new Error("Engin akstursleið fannst milli þessara staða.");
+  const r = buildRoute(o.routes[0], parseFloat($("pace").value));
+
+  const nSeg = clamp(Math.round(r.dist / 12000), 6, 60);
+  const sampleD = [], lat = [], lon = [];
+  for (let k = 0; k <= nSeg; k++) {
+    const d = r.dist * k / nSeg, p = posAtDist(r, d);
+    sampleD.push(d); lat.push(p[0].toFixed(4)); lon.push(p[1].toFixed(4));
+  }
+  setStatus("Sæki spá fyrir " + (nSeg+1) + " punkta á leiðinni…");
+  let w = await getJSON("https://api.open-meteo.com/v1/forecast?latitude=" + lat.join(",") + "&longitude=" + lon.join(",") +
+    "&hourly=temperature_2m,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m" +
+    "&wind_speed_unit=ms&timeformat=unixtime&timezone=GMT&forecast_days=10", "veðurspána");
+  if (!Array.isArray(w)) w = [w];
+  const hourly = w.map(x => x.hourly);
+  const h0 = hourly[0].time, first = h0[0]*1000, last = h0[h0.length-1]*1000;
+  if (dep < first || dep + r.dur*1000 > last)
+    throw new Error("Ferðin lendir utan spátímabilsins (" + fmtDay(first) + " – " + fmtDay(last) + ").");
+  return { r, sampleD, hourly, dep };
+}
+
+// ---------- Kort ----------
+const map = L.map("map", { zoomControl: true }).setView([64.9, -18.6], 6);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution: "© OpenStreetMap" }).addTo(map);
+const routeLayer = L.layerGroup().addTo(map);
+const endMarkers = { from: null, to: null };
+const car = L.marker([64.9,-18.6], { icon: L.divIcon({ className: "car", html: "🚗", iconSize: [30,26], iconAnchor: [15,13] }), zIndexOffset: 1000 });
+
+function setPoint(which, p) {
+  pts[which] = p;
+  if (endMarkers[which]) endMarkers[which].remove();
+  endMarkers[which] = L.circleMarker([p.lat, p.lon], { radius: 7, weight: 2, color: "#fff",
+    fillColor: which === "from" ? "#16a34a" : "#dc2626", fillOpacity: 1 }).addTo(map).bindTooltip(p.name);
+}
+map.on("click", e => {
+  if (pickMode === "none") return;
+  const p = { name: "Punktur á korti", lat: +e.latlng.lat.toFixed(5), lon: +e.latlng.lng.toFixed(5) };
+  const sel = $(pickMode);
+  let opt = sel.querySelector("option[value=map]");
+  if (!opt) { opt = document.createElement("option"); opt.value = "map"; sel.prepend(opt); }
+  opt.textContent = "📍 " + p.lat.toFixed(3) + ", " + p.lon.toFixed(3);
+  sel.value = "map";
+  setPoint(pickMode, p);
+});
+function drawRoute() {
+  routeLayer.clearLayers();
+  if (!trip) return;
+  const r = trip.r, N = 160;
+  L.polyline(r.latlng, { color: "#000", weight: 8, opacity: .35 }).addTo(routeLayer);
+  let j = 0;
+  for (let k = 0; k < N; k++) {
+    const d0 = r.dist*k/N, d1 = r.dist*(k+1)/N, dm = (d0+d1)/2;
+    const v = wxAt(trip, dm, trip.dep/1000 + timeAtDist(r, dm))[elem];
+    const seg = [posAtDist(r, d0)];
+    while (j < r.cumD.length && r.cumD[j] <= d0) j++;
+    for (let i = j; i < r.cumD.length && r.cumD[i] < d1; i++) seg.push(r.latlng[i]);
+    seg.push(posAtDist(r, d1));
+    L.polyline(seg, { color: colorFor(elem, v), weight: 5, opacity: 1, lineCap: "butt" }).addTo(routeLayer);
+  }
+}
+
+// ---------- Birting ----------
+function setStatus(msg, err) { const s = $("status"); s.textContent = msg || ""; s.className = err ? "err" : ""; }
+function stateAt(f) {
+  const r = trip.r, t = r.dur * f, d = distAtTime(r, t), ms = trip.dep + t*1000;
+  return { t, d, ms, pos: posAtDist(r, d), wx: wxAt(trip, d, ms/1000) };
+}
+function render() {
+  if (!trip) return;
+  const s = stateAt(frac), w = s.wx, [ic, txt] = symbol(w.code);
+  car.setLatLng(s.pos);
+  $("sym").textContent = ic;
+  $("when").textContent = fmtDay(s.ms) + " kl. " + fmtT(s.ms) + " · " + txt;
+  const near = nearestPlace(s.pos[0], s.pos[1]);
+  $("where").textContent = Math.round(s.d/1000) + " km af " + Math.round(trip.r.dist/1000) + (near ? " · " + near : "");
+  $("vT").textContent = w.temp.toFixed(0) + "°";
+  $("vW").innerHTML = '<span class="arrow" style="transform:rotate(' + (w.dir+180) + 'deg)">↑</span> ' + w.wind.toFixed(0) + " m/s";
+  $("vG").textContent = dirName(w.dir) + " · hviður " + w.gust.toFixed(0);
+  $("vP").textContent = w.precip < 0.05 ? "0" : w.precip.toFixed(1);
+  const warns = [];
+  if (w.gust >= 25) warns.push("Mjög hvassar hviður (" + w.gust.toFixed(0) + " m/s)");
+  else if (w.wind >= 15 || w.gust >= 20) warns.push("Hvasst");
+  if (w.precip >= 0.1 && w.temp <= 1) warns.push(w.temp > -1 ? "Úrkoma við frostmark — hætta á hálku" : "Úrkoma í frosti — snjór eða skafrenningur líklegur");
+  $("warn").style.display = warns.length ? "block" : "none";
+  $("warn").textContent = "⚠ " + warns.join(" · ");
+  $("scrub").value = Math.round(frac*1000);
+  drawChart();
+}
+function buildSummary() {
+  const N = 200; let mw, mg, lt, pr = 0, slick = null;
+  for (let k = 0; k <= N; k++) {
+    const s = stateAt(k/N), w = s.wx;
+    if (!mw || w.wind > mw.wx.wind) mw = s;
+    if (!mg || w.gust > mg.wx.gust) mg = s;
+    if (!lt || w.temp < lt.wx.temp) lt = s;
+    pr += w.precip * (trip.r.dur/N) / 3600;
+    if (!slick && w.precip >= 0.1 && w.temp <= 1) slick = s;
+  }
+  const at = s => "kl. " + fmtT(s.ms) + ", km " + Math.round(s.d/1000);
+  const li = [
+    "Leið: " + Math.round(trip.r.dist/1000) + " km, " + fmtDur(trip.r.dur) + " — koma " + fmtDay(trip.dep + trip.r.dur*1000) + " kl. " + fmtT(trip.dep + trip.r.dur*1000),
+    "Mestur vindur: " + mw.wx.wind.toFixed(0) + " m/s (" + at(mw) + "), mestu hviður " + mg.wx.gust.toFixed(0) + " m/s (" + at(mg) + ")",
+    "Lægstur hiti: " + lt.wx.temp.toFixed(0) + "° (" + at(lt) + ")",
+    "Úrkoma sem þú ekur í gegnum: um " + pr.toFixed(1) + " mm",
+    slick ? "Úrkoma við eða undir frostmarki fyrst " + at(slick) : "Engin úrkoma við frostmark á leiðinni samkvæmt spánni"
+  ];
+  $("summary").innerHTML = li.map(x => "<li>" + x + "</li>").join("");
+  $("legend").innerHTML = SCALES[elem].steps.map(([lim, c], i, a) =>
+    "<span><i style='background:" + c + "'></i>" + (lim === Infinity ? "≥ " + a[i-1][0] : "< " + lim) + "</span>").join("") +
+    "<span>" + SCALES[elem].unit + "</span>";
+}
+
+// ---------- Graf ----------
+let series = null;
+function buildSeries() {
+  const N = 240; series = [];
+  for (let k = 0; k <= N; k++) series.push(stateAt(k/N));
+}
+function drawChart() {
+  const cv = $("chart"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !series) return;
+  if (cv.width !== Math.round(W*dpr)) { cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); }
+  const g = cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,W,H);
+  const css = getComputedStyle(document.documentElement);
+  const ink = css.getPropertyValue("--ink"), muted = css.getPropertyValue("--muted"), line = css.getPropertyValue("--line");
+  const L0 = 34, R0 = 8, pw = W-L0-R0, rows = [
+    { key: "wind", label: "Vindur m/s", extra: "gust" }, { key: "temp", label: "Hiti °C" }, { key: "precip", label: "Úrkoma mm/klst", bars: true }];
+  const rh = (H-18)/3, n = series.length-1, X = k => L0 + pw*k/n;
+  g.font = "11px system-ui, sans-serif"; g.textBaseline = "middle";
+  rows.forEach((row, ri) => {
+    const y0 = ri*rh + 16, h = rh - 22;
+    let lo = Infinity, hi = -Infinity;
+    for (const s of series) { const v = s.wx[row.key], e = row.extra ? s.wx[row.extra] : v; lo = Math.min(lo, v); hi = Math.max(hi, v, e); }
+    if (row.key !== "temp") lo = 0;
+    if (row.key === "precip") hi = Math.max(hi, 1);
+    if (hi - lo < 2) { hi += 1; if (row.key === "temp") lo -= 1; }
+    const Y = v => y0 + h - h*(v-lo)/(hi-lo);
+    g.fillStyle = muted; g.textAlign = "left"; g.fillText(row.label, L0, y0-9);
+    g.textAlign = "right"; g.fillText(hi.toFixed(0), L0-5, y0+4); g.fillText(lo.toFixed(0), L0-5, y0+h-2);
+    g.strokeStyle = line; g.lineWidth = 1; g.strokeRect(L0+.5, y0+.5, pw-1, h);
+    if (row.key === "temp" && lo < 0 && hi > 0) { g.setLineDash([3,3]); g.beginPath(); g.moveTo(L0, Y(0)); g.lineTo(L0+pw, Y(0)); g.stroke(); g.setLineDash([]); }
+    if (row.bars) {
+      const bw = Math.max(1, pw/n);
+      series.forEach((s,k) => { const v = s.wx.precip; if (v < 0.05) return; g.fillStyle = colorFor("precip", v); g.fillRect(X(k)-bw/2, Y(v), bw+.5, y0+h-Y(v)); });
+    } else {
+      if (row.extra) { g.strokeStyle = muted; g.lineWidth = 1; g.setLineDash([2,3]); g.beginPath();
+        series.forEach((s,k) => k ? g.lineTo(X(k), Y(s.wx[row.extra])) : g.moveTo(X(k), Y(s.wx[row.extra]))); g.stroke(); g.setLineDash([]); }
+      g.lineWidth = 2.5;
+      for (let k = 1; k <= n; k++) { g.strokeStyle = colorFor(row.key, series[k].wx[row.key]); g.beginPath();
+        g.moveTo(X(k-1), Y(series[k-1].wx[row.key])); g.lineTo(X(k), Y(series[k].wx[row.key])); g.stroke(); }
+    }
+  });
+  g.fillStyle = muted; g.textAlign = "left"; g.fillText(fmtT(trip.dep), L0, H-7);
+  g.textAlign = "right"; g.fillText(fmtT(trip.dep + trip.r.dur*1000), W-R0, H-7);
+  const cx = L0 + pw*frac; g.strokeStyle = ink; g.lineWidth = 1.5; g.beginPath(); g.moveTo(cx, 6); g.lineTo(cx, H-16); g.stroke();
+  g.textAlign = "center"; g.fillStyle = ink; g.fillText(fmtT(trip.dep + trip.r.dur*frac*1000), clamp(cx, L0+60, W-R0-60), H-7);
+}
+
+// ---------- Spilun ----------
+function tick(ts) {
+  if (!playing) return;
+  if (lastTs) frac += (ts-lastTs)/1000 / parseFloat($("speed").value);
+  lastTs = ts;
+  if (frac >= 1) { frac = 1; setPlaying(false); }
+  render();
+  if (playing) requestAnimationFrame(tick);
+}
+function setPlaying(on) {
+  playing = on; lastTs = 0; $("play").textContent = on ? "⏸" : "▶";
+  if (on) { if (frac >= 1) frac = 0; requestAnimationFrame(tick); }
+}
+
+// ---------- Viðmót ----------
+function fillSelect(id, def) {
+  const s = $(id);
+  PLACES.forEach((p,i) => { const o = document.createElement("option"); o.value = i; o.textContent = p[0]; s.append(o); });
+  s.value = PLACES.findIndex(p => p[0] === def);
+  s.addEventListener("change", () => { if (s.value !== "map") { const p = PLACES[s.value]; setPoint(id, { name: p[0], lat: p[1], lon: p[2] }); } });
+  s.dispatchEvent(new Event("change"));
+}
+function segGroup(id, cb) {
+  $(id).addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    e.preventDefault();
+    $(id).querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+    cb(b.dataset.v);
+  });
+}
+fillSelect("from", "Reykjavík"); fillSelect("to", "Akureyri");
+segGroup("pick", v => { pickMode = v; $("map").style.cursor = v === "none" ? "" : "crosshair"; });
+segGroup("elem", v => { elem = v; drawRoute(); buildSummary(); });
+{ const d = new Date(Date.now() + 3600e3); d.setMinutes(0,0,0);
+  const p = x => String(x).padStart(2,"0");
+  $("depart").value = d.getFullYear() + "-" + p(d.getMonth()+1) + "-" + p(d.getDate()) + "T" + p(d.getHours()) + ":00"; }
+
+$("go").addEventListener("click", async () => {
+  $("go").disabled = true; setPlaying(false);
+  try {
+    trip = await loadTrip(); frac = 0;
+    ["trip","chartPanel","sumPanel"].forEach(id => $(id).classList.remove("hidden"));
+    buildSeries(); drawRoute(); buildSummary();
+    car.addTo(map); map.fitBounds(L.latLngBounds(trip.r.latlng), { padding: [24,24] });
+    setStatus(""); render(); setPlaying(true);
+  } catch (e) { setStatus(e.message, true); }
+  $("go").disabled = false;
+});
+$("play").addEventListener("click", () => setPlaying(!playing));
+$("scrub").addEventListener("input", e => { setPlaying(false); frac = e.target.value/1000; render(); });
+function chartSeek(e) {
+  if (!trip) return;
+  const b = $("chart").getBoundingClientRect();
+  setPlaying(false); frac = clamp((e.clientX - b.left - 34) / (b.width - 42), 0, 1); render();
+}
+$("chart").addEventListener("pointerdown", e => { $("chart").setPointerCapture(e.pointerId); chartSeek(e); });
+$("chart").addEventListener("pointermove", e => { if (e.buttons || e.pointerType === "touch") chartSeek(e); });
+window.addEventListener("resize", drawChart);
+</script>
+</body>
+</html>
