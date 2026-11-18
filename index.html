@@ -102,7 +102,7 @@ svg{display:block;max-width:100%;height:auto}
       <div class="cap">Suðvesturhornið (strikaði ramminn) stækkað:</div>
       <div id="inset"></div>
       <div class="legend">
-        <span><i style="background:var(--ice3)"></i>Feitur ís (60+)</span>
+        <span><i style="background:var(--ice3)"></i>Góður ís (60+)</span>
         <span><i style="background:var(--ice2)"></i>Líklega klifranlegt (25–60)</span>
         <span><i style="background:var(--ice1)"></i>Þunnt, í mótun (10–25)</span>
         <span><i style="background:var(--ice0)"></i>Lítill ís (&lt;10)</span>
@@ -117,7 +117,7 @@ svg{display:block;max-width:100%;height:auto}
   </div>
   <section class="note">
     <h2>Hvernig þetta er reiknað</h2>
-    <p style="margin-top:8px">Hiti hvers svæðis er veginn úr allt að fjórum næstu sjálfvirku veðurstöðvum og leiðréttur fyrir hæð (0,65° á hverja 100 m). Hver frostdagur bætir 0,6 × meðalfrosti dagsins við stuðulinn (frost umfram 8° telst ekki með). Hlákudagur dregur frá 1,2 × meðalhita, og rigning í spánni dregur frá að auki. Stuðullinn er á bilinu 0–100. Vika með um 7° frosti gefur um 30 (líklega klifranlegt), en feitur ís (60) þarf um tvær vikur.</p>
+    <p style="margin-top:8px">Hiti hvers svæðis er veginn úr allt að fjórum næstu sjálfvirku veðurstöðvum og leiðréttur fyrir hæð (0,65° á hverja 100 m). Hver frostdagur bætir 0,6 × meðalfrosti dagsins við stuðulinn (frost umfram 8° telst ekki með). Hlákudagur dregur frá 1,2 × meðalhita, og rigning í spánni dregur frá að auki. Stuðullinn er á bilinu 0–100. Vika með um 7° frosti gefur um 30 (líklega klifranlegt), en góður ís (60) þarf um tvær vikur.</p>
     <p>Spáin kemur frá Open-Meteo og er hliðruð þannig að hún passi við mælingar síðustu sjö daga á hverju svæði.</p>
     <p><b>Fyrirvarar.</b> Þetta er gróft mat, ekki aðstæðufrétt. Hnit og hæð svæðanna eru áætluð. Líkanið tekur hvorki tillit til vatnsframboðs, áttarhorns, sólar né vinds, og það er aðeins borið saman við tólf aðstæðulýsingar af Ísalp (Brynjudalur 2015–16 og þráðurinn 2024–25). Vatnslitlar sprænur frjósa hraðar en stuðullinn segir og vatnsmiklir fossar hægar. Gögnin uppfærast tvisvar á dag.</p>
     <p>Gögn: <a href="https://api.vedur.is/weather/">Veðurstofa Íslands, veðurathuganir</a> · <a href="https://open-meteo.com/">Open-Meteo, veðurspá</a> · <a href="https://www.isalp.is/en/category/crag">Ísalp, klifursvæði</a></p>
@@ -149,7 +149,7 @@ function simulate(c,D){
   return days;
 }
 const level=v=>v>=60?3:v>=25?2:v>=10?1:0;
-const LBL=['Lítill ís','Þunnt, í mótun','Líklega klifranlegt','Feitur ís'];
+const LBL=['Lítill ís','Þunnt, í mótun','Líklega klifranlegt','Góður ís'];
 let sel=0, selCrag=null;
 
 /* ---------- map ---------- */
