@@ -102,24 +102,24 @@ svg{display:block;max-width:100%;height:auto}
       <div class="cap">Suðvesturhornið (strikaði ramminn) stækkað:</div>
       <div id="inset"></div>
       <div class="legend">
-        <span><i style="background:var(--ice3)"></i>Feitur ís (40+)</span>
-        <span><i style="background:var(--ice2)"></i>Líklega klifranlegt (25–40)</span>
-        <span><i style="background:var(--ice1)"></i>Þunnt, í mótun (12–25)</span>
-        <span><i style="background:var(--ice0)"></i>Lítill ís (&lt;12)</span>
+        <span><i style="background:var(--ice3)"></i>Feitur ís (60+)</span>
+        <span><i style="background:var(--ice2)"></i>Líklega klifranlegt (25–60)</span>
+        <span><i style="background:var(--ice1)"></i>Þunnt, í mótun (10–25)</span>
+        <span><i style="background:var(--ice0)"></i>Lítill ís (&lt;10)</span>
         <span><i class="t"></i>Hláka þann dag</span>
       </div>
     </section>
     <section class="card">
       <h2 id="listh">Röðun</h2>
-      <div class="cap">Ísstuðull 0–60. Línuritið sýnir stuðulinn síðustu 14 daga (heil lína) og spá næstu 8 daga (brotin lína). Ýttu á svæði til að sjá hita og veðurstöðvar.</div>
+      <div class="cap">Ísstuðull 0–100. Línuritið sýnir stuðulinn síðustu 14 daga (heil lína) og spá næstu 8 daga (brotin lína). Ýttu á svæði til að sjá hita og veðurstöðvar.</div>
       <div class="list" id="list"></div>
     </section>
   </div>
   <section class="note">
     <h2>Hvernig þetta er reiknað</h2>
-    <p style="margin-top:8px">Hiti hvers svæðis er veginn úr allt að fjórum næstu sjálfvirku veðurstöðvum og leiðréttur fyrir hæð (0,65° á hverja 100 m). Hver frostdagur bætir meðalfrosti dagsins við stuðulinn (mest 8). Hlákudagur dregur frá tvöfaldan meðalhita, og rigning í spánni dregur frá að auki. Stuðullinn fer aldrei undir 0 eða yfir 60.</p>
+    <p style="margin-top:8px">Hiti hvers svæðis er veginn úr allt að fjórum næstu sjálfvirku veðurstöðvum og leiðréttur fyrir hæð (0,65° á hverja 100 m). Hver frostdagur bætir 0,6 × meðalfrosti dagsins við stuðulinn (frost umfram 8° telst ekki með). Hlákudagur dregur frá 1,2 × meðalhita, og rigning í spánni dregur frá að auki. Stuðullinn er á bilinu 0–100. Vika með um 7° frosti gefur um 30 (líklega klifranlegt), en feitur ís (60) þarf um tvær vikur.</p>
     <p>Spáin kemur frá Open-Meteo og er hliðruð þannig að hún passi við mælingar síðustu sjö daga á hverju svæði.</p>
-    <p><b>Fyrirvarar.</b> Þetta er gróft mat, ekki aðstæðufrétt. Hnit og hæð svæðanna eru áætluð. Líkanið tekur hvorki tillit til vatnsframboðs, áttarhorns, sólar né vinds, og það er aðeins borið saman við örfáar aðstæðulýsingar úr Brynjudal frá 2015, þar sem það stóðst misjafnlega. Gögnin uppfærast tvisvar á dag.</p>
+    <p><b>Fyrirvarar.</b> Þetta er gróft mat, ekki aðstæðufrétt. Hnit og hæð svæðanna eru áætluð. Líkanið tekur hvorki tillit til vatnsframboðs, áttarhorns, sólar né vinds, og það er aðeins borið saman við tólf aðstæðulýsingar af Ísalp (Brynjudalur 2015–16 og þráðurinn 2024–25). Vatnslitlar sprænur frjósa hraðar en stuðullinn segir og vatnsmiklir fossar hægar. Gögnin uppfærast tvisvar á dag.</p>
     <p>Gögn: <a href="https://api.vedur.is/weather/">Veðurstofa Íslands, veðurathuganir</a> · <a href="https://open-meteo.com/">Open-Meteo, veðurspá</a> · <a href="https://www.isalp.is/en/category/crag">Ísalp, klifursvæði</a></p>
   </section>
 </div>
@@ -143,12 +143,12 @@ function simulate(c,D){
   D.fcDates.forEach((d,i)=>{if(d>last)days.push({T:c.fT[i]+off,r:c.fR[i]||0,fc:true})});
   let ice=0;
   for(const d of days){
-    if(d.T<0)ice+=Math.min(-d.T,8);else ice-=2*d.T+Math.min(d.r,20)*0.3;
-    ice=Math.max(0,Math.min(60,ice));d.ice=ice;
+    if(d.T<0)ice+=0.6*Math.min(-d.T,8);else ice-=1.2*d.T+Math.min(d.r,20)*0.18;
+    ice=Math.max(0,Math.min(100,ice));d.ice=ice;
   }
   return days;
 }
-const level=v=>v>=40?3:v>=25?2:v>=12?1:0;
+const level=v=>v>=60?3:v>=25?2:v>=10?1:0;
 const LBL=['Lítill ís','Þunnt, í mótun','Líklega klifranlegt','Feitur ís'];
 let sel=0, selCrag=null;
 
@@ -198,7 +198,7 @@ function drawList(){
     return `<details class="row" data-i="${i}" ${selCrag===i?'open':''}><summary>
       <span class="rank">${k+1}</span>
       <span><span class="name">${c.n}</span><span class="meta"><span class="pill l${lv}">${LBL[lv]}</span>${d.T>1?'<span class="pill thawp">Hláka</span>':''}<span>${c.ele} m</span></span></span>
-      ${spark(ice,NOBS-1-FIRST,sel-FIRST,{lo:0,hi:60,area:true,ref:40})}
+      ${spark(ice,NOBS-1-FIRST,sel-FIRST,{lo:0,hi:100,area:true,ref:60})}
       <span class="score">${num(d.ice)}</span></summary>
       <div class="det">
         <div><b>${WD[d0.getUTCDay()]} ${fmtD(d0)}:</b> meðalhiti ${num(d.T,1)}°${d.fc?', úrkoma '+num(d.r)+' mm (spá)':' (mælt)'}${trend?'. Stuðullinn '+trend+'.':''}</div>
@@ -218,10 +218,10 @@ function drawSummary(){
   const today=NOBS,avg=i=>CRAGS.reduce((a,c)=>a+c.days[i].ice,0)/CRAGS.length;
   let peak=today;for(let i=today;i<NOBS+NFC;i++)if(avg(i)>avg(peak))peak=i;
   const top=[...CRAGS].sort((a,b)=>b.days[peak].ice-a.days[peak].ice).slice(0,3).map(c=>c.n);
-  const fat=CRAGS.filter(c=>c.days[peak].ice>=40).length;
+  const fat=CRAGS.filter(c=>c.days[peak].ice>=25).length;
   let thaw=-1;for(let i=today;i<NOBS+NFC;i++){if(CRAGS.filter(c=>c.days[i].T>1).length>CRAGS.length/2){thaw=i;break}}
   const pd=dayAt(peak);
-  let s=`<strong>Besti dagurinn í spánni er ${WD[pd.getUTCDay()]} ${fmtE(pd)}.</strong> Þá ná ${fat} af ${CRAGS.length} svæðum stuðli 40 eða hærri. Efst eru ${top[0]}, ${top[1]} og ${top[2]}.`;
+  let s=`<strong>Besti dagurinn í spánni er ${WD[pd.getUTCDay()]} ${fmtE(pd)}.</strong> Þá eru ${fat} af ${CRAGS.length} svæðum með stuðul 25 eða hærri (líklega klifranlegt eða betra). Efst eru ${top[0]}, ${top[1]} og ${top[2]}.`;
   if(thaw>=0){const td=dayAt(thaw);s+=` Spáin sýnir hláku á meirihluta svæða frá ${WD[td.getUTCDay()]} ${fmtE(td)}.`}
   document.getElementById('summary').innerHTML=s;
   document.getElementById('sub').textContent=`Gróft mat á ísmyndun á ${CRAGS.length} svæðum. Mælingar Veðurstofunnar til ${fmtD(dayAt(NOBS-1))}, spá til ${fmtD(dayAt(NOBS+NFC-1))} ${dayAt(0).getUTCFullYear()}. Uppfært ${fmtD(new Date(GEN.slice(0,10)+'T00:00:00Z'))} kl. ${GEN.slice(11,16)}.`;

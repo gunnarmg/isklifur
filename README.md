@@ -16,9 +16,10 @@ Veðurstofu Íslands og veðurspá Open-Meteo.
 ## Líkanið
 
 Hiti hvers svæðis er veginn úr allt að fjórum næstu sjálfvirku stöðvum (innan 60 km)
-og leiðréttur fyrir hæð (0,65° á 100 m). Frostdagur bætir meðalfrosti dagsins við
-stuðulinn (mest 8), hlákudagur dregur frá tvöfaldan meðalhita auk 0,3 × úrkomu (mest 20 mm)
-í spánni. Stuðullinn er á bilinu 0–60. Líkanið er nánast ókvarðað og tekur ekki tillit til
+og leiðréttur fyrir hæð (0,65° á 100 m). Frostdagur bætir 0,6 × meðalfrosti dagsins við
+stuðulinn (frost umfram 8° telst ekki með), hlákudagur dregur frá 1,2 × meðalhita auk
+0,18 × úrkomu (mest 20 mm) í spánni. Stuðullinn er á bilinu 0–100: 10 = í mótun,
+25 = líklega klifranlegt, 60 = feitur ís. Líkanið er nánast ókvarðað og tekur ekki tillit til
 vatnsframboðs, áttarhorns, sólar eða vinds.
 
 ## Gögn
